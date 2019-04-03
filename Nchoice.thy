@@ -8,11 +8,8 @@ subsection \<open>Generic operations\<close>
 locale abel_abel_semigroup = abel_semigroup +
   assumes idemp [ac_simps]: "a \<^bold>* a = a" 
 
-locale abel_abe_semigroup = abel_semigroup +
-  assumes idem [ac_simps]: "a \<^bold>* a = a" 
-
-class nchoice = uzero + uskip +
-  fixes nchoice :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<sqinter>" 70)
+class nchoice = 
+  fixes nchoice :: "'a proc \<Rightarrow> 'a proc \<Rightarrow> 'a proc" (infixl "\<sqinter>" 70)
   assumes nch_assoc [algebra_simps, field_simps]: "(x \<sqinter> y) \<sqinter> z = x \<sqinter> (y \<sqinter> z)"
       and nch_commute [algebra_simps, field_simps]: "x \<sqinter> y = y \<sqinter> x"
       and nch_idemp [algebra_simps, field_simps]: "(x \<sqinter> x) = x" 
@@ -102,6 +99,31 @@ lemma LawA3_1:
 
 lemma "A = {x,y} \<Longrightarrow> \<Sqinter>(A) = x \<sqinter> y"
   by (simp add: Nchoice.insert_if ncho_ac(4))
+
+
+
+
+
+
+
+
+class all_operater = serial + assi +  comm_monoid_nchoice +
+  assumes serial_1: "\<forall>x \<in> A. \<Sqinter>(A) ;; y = \<Sqinter>{(x ;; y)}"
+      and serial_2: "\<forall>y \<in> B. x ;; \<Sqinter>(B) = \<Sqinter>{(x ;; y)}"
+
+declare all_operater.serial_1
+declare all_operater.serial_2
+(***why "class = xxx + xxxx + assumes" doesn't work? 
+theorem "\<forall>x \<in> A. \<Sqinter>(A) ;; y = \<Sqinter>{(x ;; y)}"
+***)
+
+
+
+
+
+
+
+
 
 end
 
