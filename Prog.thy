@@ -9,14 +9,18 @@ sequential "'a prog" "'a prog" |
 nondeterm_choice "'a prog" "'a prog"
 
 primrec prog_op where
-"prog_op  (Const P) = P" |
+"prog_op (Const P) = P" |
 "prog_op (if_then_else P b Q) = prog_op P \<triangleleft> b \<triangleright>\<^sub>\<p> prog_op Q " |
 "prog_op (sequential P Q) = prog_op P ;; prog_op Q " |
 "prog_op (nondeterm_choice P Q) = prog_op P \<sqinter> prog_op Q"
 
 (****next I hope to prove that all kinds of programs have a uniform form***)
 
-
+theorem Finite_normal_form1 :
+  fixes P ::" 'a prog" 
+    and bexp :: bool
+  assumes "P = ((X := a) \<sqinter> (Y := b))"
+  shows "((X := a) \<sqinter> (Y := b)) = ( \<bottom> \<triangleleft> bexp  \<triangleright>\<^sub>\<p> ( \<Sqinter>{V := e})) "
 
 
 end

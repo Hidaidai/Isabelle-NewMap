@@ -64,7 +64,6 @@ print_locale! comm_monoid_nchoice
 
 end
 
-
 (***test***)
 lemma nch_left_comm : "(x \<sqinter> y) \<sqinter> z = x \<sqinter> (y \<sqinter> z)"
   by (simp add: ncho.commute ncho.left_commute)
@@ -80,7 +79,6 @@ lemma  "\<Sqinter>{x,y} =  \<Sqinter>{x,y,y}"
 
 lemma "(\<Sqinter>A \<sqinter> \<Sqinter>A) \<sqinter> \<Sqinter>C = \<Sqinter>A  \<sqinter> \<Sqinter>C"
   by (simp add: nch_idemp)
-
 
 lemma LawA3_1_1:
   assumes "finite A" and "finite B"
@@ -100,13 +98,6 @@ lemma LawA3_1:
 lemma "A = {x,y} \<Longrightarrow> \<Sqinter>(A) = x \<sqinter> y"
   by (simp add: Nchoice.insert_if ncho_ac(4))
 
-
-
-
-
-
-
-
 class all_operater = serial + assi +  comm_monoid_nchoice +
   assumes serial_1: "\<forall>x \<in> A. \<Sqinter>(A) ;; y = \<Sqinter>{(x ;; y)}"
       and serial_2: "\<forall>y \<in> B. x ;; \<Sqinter>(B) = \<Sqinter>{(x ;; y)}"
@@ -116,14 +107,6 @@ declare all_operater.serial_2
 (***why "class = xxx + xxxx + assumes" doesn't work? 
 theorem "\<forall>x \<in> A. \<Sqinter>(A) ;; y = \<Sqinter>{(x ;; y)}"
 ***)
-
-
-
-
-
-
-
-
 
 end
 

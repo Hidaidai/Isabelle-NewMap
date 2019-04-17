@@ -27,7 +27,7 @@ class assi =
       and assi_uskip: "set (zip u u) = {}"
   assumes assi_setadd: "Z = X @ Y \<Longrightarrow> c= A @ B \<Longrightarrow>set (zip Z C) = set (zip X A) \<union> set(zip Y B) "
 
-lemma l1:"[x,y,z,u] := [a,b,c,u] = [x,y,z] := [a,b,c]"
+lemma l1:" [x,y,z] := [a,b,c] = [x,y,z,u] := [a,b,c,u]"
   by (metis append.right_neutral assi_equal assi_setadd assi_uskip)
 
 lemma l2:  "[x,y,z,w] := [a,b,c,d] = [x,y,w,z] := [a,b,d,c]"
