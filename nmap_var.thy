@@ -2,14 +2,14 @@ theory nmap_var
 imports "./Optics/Lenses"   "HOL-Library.Adhoc_Overloading"
 begin
 
-definition var :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a \<Longrightarrow> '\<alpha>)" where
-[lens_defs]: "var x = x"    
+definition var :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a \<Longrightarrow> '\<alpha>)" where "var x = x"    
 
-definition univ_alpha :: "('\<alpha> \<Longrightarrow> '\<alpha>)" ("\<Sigma>") where
-"univ_alpha \<equiv> 1\<^sub>L"
+definition univ_alpha :: "('\<alpha> \<Longrightarrow> '\<alpha>)" ("\<Sigma>") where "univ_alpha \<equiv> 1\<^sub>L"
 
-definition pr_var :: "('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a \<Longrightarrow> '\<beta>)" where
-[lens_defs]: "pr_var x = x"
+consts svar :: "'v \<Rightarrow> 'e"
+definition pr_var :: "('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a \<Longrightarrow> '\<beta>)" where "pr_var x = x"
+adhoc_overloading
+  svar pr_var 
 
 (*** some proofs about lemmas have put in the last of this theory  ***)
 
@@ -22,10 +22,7 @@ syntax \<comment> \<open> Identifiers \<close>
   "_svid_alpha"  :: "svid" ("\<^bold>v")
   "_svid_dot"    :: "svid \<Rightarrow> svid \<Rightarrow> svid" ("_:_" [998,999] 998)
 
-consts
-  svar :: "'v \<Rightarrow> 'e"
-  ivar :: "'v \<Rightarrow> 'e"
-  ovar :: "'v \<Rightarrow> 'e"
+
 
 syntax 
 \<comment> \<open> Decorations \<close>
@@ -42,9 +39,7 @@ syntax
   "_svar_cons"   :: "svar \<Rightarrow> svars \<Rightarrow> svars" ("_,/ _")
   "_salphaset"   :: "svars \<Rightarrow> salpha" ("{_}")
   "_salphamk"    :: "logic \<Rightarrow> salpha"
- \<comment> \<open> Quotations \<close>
-  "_ualpha_set"  :: "svars \<Rightarrow> logic" ("{_}\<^sub>\<alpha>")  
-  "_svar"        :: "svar \<Rightarrow> logic" ("'(_')\<^sub>v")
+
 
 translations
 \<comment> \<open> Identifiers \<close>
@@ -69,12 +64,9 @@ translations
   "x" \<leftharpoondown> "_salphamk x"
   "_salpha_all" \<rightleftharpoons> "1\<^sub>L"
   "_salpha_none" \<rightleftharpoons> "0\<^sub>L"
-\<comment> \<open> Quotations \<close>
-  "_ualpha_set A" \<rightharpoonup> "A"
-  "_svar x" \<rightharpoonup> "x"
 
-adhoc_overloading
-  svar pr_var and ivar in_var and ovar out_var
+
+
 
 
 

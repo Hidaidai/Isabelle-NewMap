@@ -7,23 +7,18 @@ begin
 typedef '\<alpha> proc  = "UNIV :: (bool, '\<alpha> \<times> '\<alpha>) uexpr set" ..
 ***)
 type_synonym '\<alpha> proc        = " (bool, '\<alpha> \<times> '\<alpha>) uexpr"
-type_synonym ('a, '\<alpha>) aproc = " ('a, '\<alpha> \<times> '\<alpha>) uexpr"
 type_synonym ('\<alpha>, '\<beta>) urel  = " (bool, '\<alpha> \<times> '\<beta>) uexpr"
 
-subsection \<open> assignment statement  \<close>
+subsection \<open>assignment statement\<close>
 
-consts
-  uassigns :: "'a usubst \<Rightarrow> 'b" ("\<langle>_\<rangle>\<^sub>a")
-  uskip    :: "'a" ("II")
-
+consts uassigns :: "'a usubst \<Rightarrow> 'b" ("\<langle>_\<rangle>\<^sub>a")
 lift_definition assigns_r :: "'\<alpha> usubst \<Rightarrow> '\<alpha> proc "
   is "\<lambda> \<sigma> (b, b'). b' = \<sigma>(b)" .
-
 adhoc_overloading
   uassigns assigns_r
-    
-definition skip_r :: " '\<alpha> proc " where "skip_r = assigns_r id"
 
+consts uskip :: "'a" ("II")
+definition skip_r :: " '\<alpha> proc " where "skip_r = assigns_r id"
 adhoc_overloading
   uskip skip_r
     
@@ -47,71 +42,54 @@ lemma assign_skip:
   assumes "vwb_lens x"
   shows "(x := &x) = II"
   by (metis assms pr_var_def skip_r_def usubst_upd_pr_var_id)
-  
+
+lemma assigns_simul2:
+  assumes "vwb_lens x"
+  shows "(x,x) := (u,v) = (x := v)"
+  by (simp add: assms usubst_upd_idem)
+
 lemma assign_simul1:
   assumes "vwb_lens y" "x \<bowtie> y"
   shows "(x,y) := (1+1, &y) = (x := 2)"
   by (metis assms(1) assms(2) one_add_one pr_var_def usubst_upd_comm usubst_upd_pr_var_id)
 
-lemma assigns_simul2: "vwb_lens x \<Longrightarrow> (x,x) := (u,v) = (x := v)"
-  by (simp add: subst_upd_pr_var usubst_upd_idem)
+
+
+
+
+
+
+  
+
+
 (***    test end    ***)
-
-
-
-
-
-
-
-subsection \<open> serial statement  \<close>
-locale serial = 
-  fixes serial :: "'\<alpha> proc \<Rightarrow> '\<alpha> proc \<Rightarrow> '\<alpha> proc" (infixl ";;" 60)
-  assumes serial_assoc : "(X ;; Y) ;; Z = X ;; (Y ;; Z)"
-      and serial_skip_left : "II ;;X = X"
-      and serial_skip_right : "X ;; II = X"
-
-lemma  (in serial) assign_test1:
-  assumes "vwb_lens x"
-  shows "(x:=1  ;; II) = x := 1"
-  using serial_skip_right by auto
-
-
-lemma  (in serial) assign_test2:
-  assumes "vwb_lens y"  "vwb_lens x" "x \<bowtie> y"
-  shows "(x:=1  ;; y:=2) = (x,y) := (1,2)"
- (***     can not proof  ***)
-
-
-(***
-consts
-  useq     :: "'a \<Rightarrow> 'b \<Rightarrow> 'c" (infixr ";;" 61)
-
-lift_definition seqr:: "'\<alpha> proc \<Rightarrow> '\<alpha> proc \<Rightarrow> '\<alpha> proc"
-is "\<lambda> P Q b. b \<in> ({p. P p} O {q. Q q})" .
-
-adhoc_overloading
-  useq seqr
-***)
 
 
 
 
 subsection \<open> nchoice statement  \<close>
 
-locale nchoice = 
-  fixes nchoice :: "'\<alpha> proc \<Rightarrow> '\<alpha> proc \<Rightarrow> '\<alpha> proc" (infixl "\<sqinter>" 70)
-  assumes nch_assoc [algebra_simps, field_simps]: "(x \<sqinter> y) \<sqinter> z = x \<sqinter> (y \<sqinter> z)"
-      and nch_commute [algebra_simps, field_simps]: "x \<sqinter> y = y \<sqinter> x"
-      and nch_idemp [algebra_simps, field_simps]: "(x \<sqinter> x) = x" 
+class nchoice = 
+  fixes nchoice :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<sqinter>" 70)
+  assumes nch_assoc   : "(x \<sqinter> y) \<sqinter> z = x \<sqinter> (y \<sqinter> z)"
+      and nch_commute : "x \<sqinter> y = y \<sqinter> x"
+      and nch_idemp   : "(x \<sqinter> x) = x" 
+(**
       and nch_skip_left: " II \<sqinter> x = x"
       and nch_skip_right: "x \<sqinter>  II = x"
+**)
 
-lemma (in nchoice) "(x:=3)  \<sqinter> (y:=4) =  (y:=4)  \<sqinter>  (x:=3)"
-  by (simp add: nch_commute)
+
+
+
 
 
 
 (***
+lemma (in nchoice) "(x:=3)  \<sqinter> (y:=4) =  (y:=4)  \<sqinter>  (x:=3)"
+  by (simp add: nch_commute)
+
+
 lemma " (a:=3)  \<sqinter> (b:=4) =  (b:=4)  \<sqinter>  (a:=3)  "
 'a  = 'b state_scheme
 ***)
@@ -121,7 +99,7 @@ lemma " (a:=3)  \<sqinter> (b:=4) =  (b:=4)  \<sqinter>  (a:=3)  "
 subsection \<open> if-than-else statement  \<close>
 
 definition ifprog :: " 'a  \<Rightarrow> bool \<Rightarrow> 'a  \<Rightarrow> 'a "  ("(_ \<triangleleft> _  \<triangleright>\<^sub>\<p>/ _)" [52,0,53] 52)
-  where "x  \<triangleleft> P  \<triangleright>\<^sub>\<p> y \<equiv> (THE z::'a . (P = True \<longrightarrow> z = x) \<and> (P = False \<longrightarrow> z = y))"
+  where "x  \<triangleleft> P \<triangleright>\<^sub>\<p> y \<equiv> (THE z::'a . (P = True \<longrightarrow> z = x) \<and> (P = False \<longrightarrow> z = y))"
 
 theorem ifprog_idemp : "x \<triangleleft> boole \<triangleright>\<^sub>\<p> x = x"
   by (simp add: ifprog_def)
