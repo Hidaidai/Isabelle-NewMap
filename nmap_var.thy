@@ -2,14 +2,21 @@ theory nmap_var
 imports "./Optics/Lenses"   "HOL-Library.Adhoc_Overloading"
 begin
 
-definition var :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a \<Longrightarrow> '\<alpha>)" where "var x = x"    
+definition in_var :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a \<Longrightarrow> '\<alpha> \<times> '\<beta>)" where "in_var x = x ;\<^sub>L fst\<^sub>L"
+
+definition out_var :: "('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a \<Longrightarrow> '\<alpha> \<times> '\<beta>)" where "out_var x = x ;\<^sub>L snd\<^sub>L"
 
 definition univ_alpha :: "('\<alpha> \<Longrightarrow> '\<alpha>)" ("\<Sigma>") where "univ_alpha \<equiv> 1\<^sub>L"
 
 consts svar :: "'v \<Rightarrow> 'e"
-definition pr_var :: "('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a \<Longrightarrow> '\<beta>)" where "pr_var x = x"
+definition pr_var :: "('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a \<Longrightarrow> '\<beta>)" where [lens_defs]: "pr_var x = x"
 adhoc_overloading
   svar pr_var 
+
+consts
+  ivar :: "'v \<Rightarrow> 'e"
+  ovar :: "'v \<Rightarrow> 'e"
+
 
 (*** some proofs about lemmas have put in the last of this theory  ***)
 
@@ -21,12 +28,10 @@ syntax \<comment> \<open> Identifiers \<close>
   "_svid_list"   :: "svid \<Rightarrow> svids \<Rightarrow> svids" ("_,/ _")
   "_svid_alpha"  :: "svid" ("\<^bold>v")
   "_svid_dot"    :: "svid \<Rightarrow> svid \<Rightarrow> svid" ("_:_" [998,999] 998)
-
-
-
-syntax 
-\<comment> \<open> Decorations \<close>
+syntax \<comment> \<open> Decorations \<close>
   "_spvar"       :: "svid \<Rightarrow> svar" ("&_" [990] 990)
+  "_sinvar"      :: "svid \<Rightarrow> svar" ("$_" [990] 990)
+  "_soutvar"     :: "svid \<Rightarrow> svar" ("$_\<acute>" [990] 990)
  \<comment> \<open> Variable sets \<close>
   "_salphaid"    :: "svid \<Rightarrow> salpha" ("_" [990] 990)
   "_salphavar"   :: "svar \<Rightarrow> salpha" ("_" [990] 990)
@@ -48,9 +53,16 @@ translations
   "_svid_dot x y" \<rightharpoonup> "y ;\<^sub>L x"
 \<comment> \<open> Decorations \<close>
   "_spvar \<Sigma>"  \<leftharpoondown>  "CONST svar CONST id_lens"
+  "_sinvar \<Sigma>"  \<leftharpoondown> "CONST ivar 1\<^sub>L"
+  "_soutvar \<Sigma>" \<leftharpoondown> "CONST ovar 1\<^sub>L"
   "_spvar (_svid_dot x y)" \<leftharpoondown> "CONST svar (CONST lens_comp y x)"
+  "_sinvar (_svid_dot x y)" \<leftharpoondown> "CONST ivar (CONST lens_comp y x)"
+  "_soutvar (_svid_dot x y)" \<leftharpoondown> "CONST ovar (CONST lens_comp y x)"
   "_svid_dot (_svid_dot x y) z" \<leftharpoondown> "_svid_dot (CONST lens_comp y x) z"
+
   "_spvar x" \<rightleftharpoons> "CONST svar x"
+  "_sinvar x" \<rightleftharpoons> "CONST ivar x"
+  "_soutvar x" \<rightleftharpoons> "CONST ovar x"
 \<comment> \<open> Alphabets \<close>
   "_salphaparen a" \<rightharpoonup> "a"
   "_salphaid x" \<rightharpoonup> "x"
@@ -86,17 +98,19 @@ declare lens_indep_right_ext [simp]
 
 text \<open> We can now easily show that our UTP variable construction are various classes of  well-behaved lens .\<close>
 
-lemma var_uvar [simp]:
-  "vwb_lens x \<Longrightarrow> vwb_lens (var x)"
-  by (simp add: var_def)
+lemma in_var_uvar [simp]:
+  "vwb_lens x \<Longrightarrow> vwb_lens (in_var x)"
+  by (simp add: in_var_def)
+
+lemma out_var_uvar [simp]:
+  "vwb_lens x \<Longrightarrow> vwb_lens (out_var x)"
+  by (simp add: out_var_def)
 
 lemma pr_var_vwb_lens [simp]: 
   "vwb_lens x \<Longrightarrow> vwb_lens (pr_var x)"
   by (simp add: pr_var_def)
     
-lemma in_var_indep [simp]:
-  "x \<bowtie> y \<Longrightarrow> var x \<bowtie> var y"
-  by (simp add: var_def)
+
 
 lemma pr_var_indeps [simp]: 
   "x \<bowtie> y \<Longrightarrow> pr_var x \<bowtie> y"
@@ -123,10 +137,43 @@ lemma pr_var_lens_comp_1 [simp]:
   "pr_var x ;\<^sub>L y = pr_var (x ;\<^sub>L y)"
   by (simp add: pr_var_def)
     
-lemma var_plus [simp]: "var (x +\<^sub>L y) = var x +\<^sub>L var y"
-  by (simp add: var_def plus_lens_distr)
 
 
+lemma in_var_weak_lens [simp]:
+  "weak_lens x \<Longrightarrow> weak_lens (in_var x)"
+  by (simp add: comp_weak_lens in_var_def)
+
+lemma in_var_semi_uvar [simp]:
+  "mwb_lens x \<Longrightarrow> mwb_lens (in_var x)"
+  by (simp add: comp_mwb_lens in_var_def)
+
+lemma pr_var_weak_lens [simp]:
+  "weak_lens x \<Longrightarrow> weak_lens (pr_var x)"
+  by (simp add: pr_var_def)
+
+lemma pr_var_mwb_lens [simp]:
+  "mwb_lens x \<Longrightarrow> mwb_lens (pr_var x)"
+  by (simp add: pr_var_def)
+    
+
+    
+
+
+
+
+
+    
+
+lemma in_var_indep [simp]:
+  "x \<bowtie> y \<Longrightarrow> in_var x \<bowtie> in_var y"
+  by (simp add: in_var_def out_var_def)
+
+lemma out_var_indep [simp]:
+  "x \<bowtie> y \<Longrightarrow> out_var x \<bowtie> out_var y"
+  by (simp add: out_var_def)
+
+
+    
 
 
 

@@ -11,12 +11,16 @@ lemma uexpr_eq_iff: "e = f \<longleftrightarrow> (\<forall> b. \<lbrakk>e\<rbrak
   using Rep_uexpr_inject[of e f, THEN sym] by (auto)
 
 section \<open> Core expression constructs using lift_definition  \<close>
+
 setup_lifting type_definition_uexpr
-lift_definition var :: "('t \<Longrightarrow> '\<alpha>) \<Rightarrow> ('t, '\<alpha>) uexpr" is lens_get .                                      
+lift_definition var :: "('t \<Longrightarrow> '\<alpha>) \<Rightarrow> ('t, '\<alpha>) uexpr" is lens_get .
+print_theorems
 lift_definition lit :: "'t \<Rightarrow> ('t, '\<alpha>) uexpr" ("\<guillemotleft>_\<guillemotright>") is "\<lambda> v b. v" .
-lift_definition uop :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> ('b, '\<alpha>) uexpr" is "\<lambda> f e b. f (e b)" .
 lift_definition bop ::"('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> ('b, '\<alpha>) uexpr \<Rightarrow> ('c, '\<alpha>) uexpr"
  is "\<lambda> f u v b. f (u b) (v b)" .
+
+definition eq_upred :: "('a, '\<alpha>) uexpr \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> (bool, '\<alpha>) uexpr" (infixl "=\<^sub>u" 50)
+  where "eq_upred x y = bop HOL.eq x y"
 
 subsection \<open> Type class instantiations\<close>
 instantiation uexpr :: (zero, type) zero
@@ -37,12 +41,34 @@ begin
 instance ..
 end
 
+
 instance uexpr :: (numeral, type) numeral
   by (intro_classes, simp add: plus_uexpr_def, transfer, simp add: add.assoc)
 
+
+instantiation uexpr :: (ord, type) ord
+begin
+  lift_definition less_eq_uexpr :: "('a, 'b) uexpr \<Rightarrow> ('a, 'b) uexpr \<Rightarrow> bool"
+  is "\<lambda> P Q. (\<forall> A. P A \<le> Q A)" .
+  definition less_uexpr :: "('a, 'b) uexpr \<Rightarrow> ('a, 'b) uexpr \<Rightarrow> bool"
+    where "less_uexpr P Q = (P \<le> Q \<and> \<not> Q \<le> P)"
+instance ..
+end
+
+lemma lit_ueval : "\<lbrakk>\<guillemotleft>x\<guillemotright>\<rbrakk>\<^sub>eb = x"
+  by (transfer, simp)
+
+lemma var_ueval: "\<lbrakk>var x\<rbrakk>\<^sub>eb = get\<^bsub>x\<^esub> b"
+  by (transfer, simp)
+
+lemma bop_ueval : "\<lbrakk>bop f x y\<rbrakk>\<^sub>eb = f (\<lbrakk>x\<rbrakk>\<^sub>eb) (\<lbrakk>y\<rbrakk>\<^sub>eb)"
+  by (transfer, simp)
+
+lemma plus_ueval : "\<lbrakk>x + y\<rbrakk>\<^sub>eb = (\<lbrakk>x\<rbrakk>\<^sub>eb) + (\<lbrakk>y\<rbrakk>\<^sub>eb)"
+  by (simp add: bop_ueval plus_uexpr_def)
+
 subsection \<open>The fundamental lemma of computation\<close>
 lemma lit_fun_simps  :
-  "\<guillemotleft>f x\<guillemotright> = uop f \<guillemotleft>x\<guillemotright>"
   "\<guillemotleft>g x y\<guillemotright> = bop g \<guillemotleft>x\<guillemotright> \<guillemotleft>y\<guillemotright>"
   by (transfer, simp)+
 
@@ -58,6 +84,7 @@ lemma lit_one [simp]: "\<guillemotleft>1\<guillemotright> = 1" by (simp add: one
 lemma lit_plus [simp]: "\<guillemotleft>x + y\<guillemotright> = \<guillemotleft>x\<guillemotright> + \<guillemotleft>y\<guillemotright>" by (simp add: plus_uexpr_def, transfer, simp)
 lemma lit_numeral [simp]: "\<guillemotleft>numeral n\<guillemotright> = numeral n" 
   by (simp add: uexpr_eq_iff numeral_uexpr_rep_eq lit.rep_eq)
+
 
 
 
@@ -82,31 +109,34 @@ section \<open> Substitution definitions \<close>
 consts usubst :: "'s \<Rightarrow> 'a \<Rightarrow> 'b" (infixr "\<dagger>" 80)
 type_synonym '\<alpha> usubst = "'\<alpha> \<Rightarrow> '\<alpha>"
 lift_definition subst :: " '\<alpha> usubst \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> ('a, '\<alpha>) uexpr" is
-"\<lambda> \<sigma> e b. e (\<sigma> b)" .                 
+"\<lambda> \<sigma> e b. e (\<sigma> b)" .  
+print_theorems
 adhoc_overloading
   usubst subst
+lemma show_usubst:
+  shows "\<lbrakk> x \<dagger> P \<rbrakk>\<^sub>e = (\<lambda>b. \<lbrakk>P\<rbrakk>\<^sub>e (x b))"
+  by (simp add: subst.rep_eq)
 
-(**
-consts subst_upd :: " '\<alpha> usubst \<Rightarrow> 'v \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow>  '\<alpha> usubst"
-definition subst_upd_uvar :: " '\<alpha> usubst \<Rightarrow> ('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow>  '\<alpha> usubst" where
-"subst_upd_uvar \<sigma> x v = (\<lambda> b. put\<^bsub>x\<^esub> (\<sigma> b) (\<lbrakk>v\<rbrakk>\<^sub>e b))"
-adhoc_overloading
-  subst_upd subst_upd_uvar
-**)
+
 type_synonym ('\<alpha>,'\<beta>) psubst = "'\<alpha> \<Rightarrow> '\<beta>"
 consts subst_upd :: "('\<alpha>,'\<beta>) psubst \<Rightarrow> 'v \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> ('\<alpha>,'\<beta>) psubst"
 definition subst_upd_uvar :: "('\<alpha>,'\<beta>) psubst \<Rightarrow> ('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> ('\<alpha>,'\<beta>) psubst" where
 "subst_upd_uvar \<sigma> x v = (\<lambda> b. put\<^bsub>x\<^esub> (\<sigma> b) (\<lbrakk>v\<rbrakk>\<^sub>e b))" 
 adhoc_overloading
   subst_upd subst_upd_uvar
+lemma show_subst_upd:
+  shows " subst_upd_uvar \<sigma> x e  = (\<lambda>b. put\<^bsub>x\<^esub> (\<sigma> b) (\<lbrakk>e\<rbrakk>\<^sub>e b))     "
+  by (simp add: subst_upd_uvar_def)
 
-(**
-lift_definition usubst_lookup :: " '\<alpha> usubst \<Rightarrow> ('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a, '\<alpha>) uexpr" ("\<langle>_\<rangle>\<^sub>s")
-is "\<lambda> \<sigma> x b. get\<^bsub>x\<^esub> (\<sigma> b)" .
-**)
+
 lift_definition usubst_lookup :: "('\<alpha>,'\<beta>) psubst \<Rightarrow> ('a \<Longrightarrow> '\<beta>) \<Rightarrow> ('a, '\<alpha>) uexpr" ("\<langle>_\<rangle>\<^sub>s")
 is "\<lambda> \<sigma> x b. get\<^bsub>x\<^esub> (\<sigma> b)" .
-  
+print_theorems
+lemma show_usubst_lookup:
+  shows "\<lbrakk> \<langle>\<sigma>\<rangle>\<^sub>s x \<rbrakk>\<^sub>e = (\<lambda>b. get\<^bsub>x\<^esub> (\<sigma> b))"
+  by (simp add: usubst_lookup.rep_eq)
+
+
 
 
 
@@ -139,63 +169,64 @@ translations
   "_psubst m x v"  => "CONST subst_upd m x v"
   "_uexp_l e" => "e"
 
+lemma hello_wodsrlddwe:
+  assumes"vwb_lens x"
+  shows " [x \<mapsto>\<^sub>s e]  = (\<lambda>b. put\<^bsub>x\<^esub> b (\<lbrakk>e\<rbrakk>\<^sub>e b))"
+  by (simp add: subst_upd_uvar_def)
+
+
+
 
 
 
 section \<open> Substitution Application Laws \<close>
 
 subsection  \<open>id has no effect \<close>
-lemma usubst_lookup_id : "\<langle>id\<rangle>\<^sub>s x = var x"
-  by (transfer, simp)
 
-lemma subst_upd_id_lam : "subst_upd (\<lambda> x. x) x v = subst_upd id x v"
-  by (simp add: id_def)
-    
-subsection \<open>update naturally yields the given expression. \<close> 
+lemma usubst_lookup_id : "\<langle>id\<rangle>\<^sub>s x = var x"
+proof -
+  have f1:"\<lbrakk>var x\<rbrakk>\<^sub>e = get\<^bsub>x\<^esub>"
+    by (simp add: var.rep_eq)
+  then have f2:"\<lbrakk>\<langle>id\<rangle>\<^sub>s x\<rbrakk>\<^sub>e = (\<lambda>b. get\<^bsub>x\<^esub> (id b))"
+    by (simp add: usubst_lookup.rep_eq)
+  then show ?thesis
+    by (simp add: f1 uexpr_eq_iff)
+qed
+
 lemma usubst_lookup_upd :
   assumes "vwb_lens x"
-  shows "\<langle>\<sigma>(x \<mapsto>\<^sub>s v)\<rangle>\<^sub>s x = v"
-  by (simp add: assms subst_upd_uvar_def uexpr_eq_iff usubst_lookup.rep_eq)
-
-
-(**
-  by (simp add: assms subst_upd_uvar_def uexpr_eq_iff usubst_lookup.rep_eq)
- **)
+  shows "\<langle>\<sigma>(x \<mapsto>\<^sub>s v)\<rangle>\<^sub>s x = v"   
+proof -
+  have "\<forall> b. get\<^bsub>x\<^esub> (put\<^bsub>x\<^esub> (\<sigma> b) (\<lbrakk>v\<rbrakk>\<^sub>e b)) = \<lbrakk>v\<rbrakk>\<^sub>e b"
+    by (simp add: assms)
+  then have "\<forall>b. get\<^bsub>x\<^esub> ((\<sigma>(x \<mapsto>\<^sub>s v)) b) = \<lbrakk>v\<rbrakk>\<^sub>e b" 
+    by (simp add: subst_upd_uvar_def)
+  then have "\<forall>b. \<lbrakk>\<langle>\<sigma>(x \<mapsto>\<^sub>s v)\<rangle>\<^sub>s x \<rbrakk>\<^sub>e b = \<lbrakk>v\<rbrakk>\<^sub>e b"
+    by (simp add: usubst_lookup.rep_eq)
+  then show ?thesis
+    by (simp add: uexpr_eq_iff)
+qed
 
 lemma usubst_lookup_upd_pr_var :
   assumes "vwb_lens x"               
   shows "\<langle>\<sigma>(x \<mapsto>\<^sub>s v)\<rangle>\<^sub>s (pr_var x) = v"      
-  using assms
-  by (simp add: subst_upd_uvar_def pr_var_def, transfer)(simp)
-    
+  by (simp add: pr_var_def usubst_lookup_upd assms)
+ 
 subsection \<open> Substitution update is idempotent. \<close>
 lemma usubst_upd_idem :
   assumes "vwb_lens x"
   shows "\<sigma>(x \<mapsto>\<^sub>s u, x \<mapsto>\<^sub>s v) = \<sigma>(x \<mapsto>\<^sub>s v)"
-proof -
-  have "(\<lambda>b. put\<^bsub>x\<^esub> (put\<^bsub>x\<^esub> (\<sigma> b) (\<lbrakk>u\<rbrakk>\<^sub>e b)) (\<lbrakk>v\<rbrakk>\<^sub>e b)) = (\<lambda>b. put\<^bsub>x\<^esub> (\<sigma> b) (\<lbrakk>v\<rbrakk>\<^sub>e b))"
-    by (simp add: assms)
-  then show ?thesis
-    by (simp add: subst_upd_uvar_def)
-qed
+  by (simp add: assms subst_upd_uvar_def)
 
 subsection \<open>just assignment \<close>
 lemma usubst_upd_var_id :
   "vwb_lens x \<Longrightarrow> [x \<mapsto>\<^sub>s var x] = id"
-  apply (simp add: subst_upd_uvar_def)
-  apply (transfer)
-  apply (rule ext)
-  apply (auto)
-  done
-
+  by (metis eq_id_iff subst_upd_uvar_def var.rep_eq vwb_lens.axioms(1) wb_lens.get_put)
+  
 lemma usubst_upd_pr_var_id :
   "vwb_lens x \<Longrightarrow> [x \<mapsto>\<^sub>s var (pr_var x)] = id"
-  apply (simp add: subst_upd_uvar_def pr_var_def)
-  apply (transfer)
-  apply (rule ext)
-  apply (auto)
-  done
-  
+  by (simp add: pr_var_def usubst_upd_var_id)
+
 subsection \<open> Substitution updates commute when the lenses are independent. \<close> 
 lemma usubst_upd_comm:
   assumes "x \<bowtie> y"
@@ -209,8 +240,7 @@ lemma usubst_upd_comm2:
   using assms
   by (rule_tac ext, auto simp add: subst_upd_uvar_def assms comp_def lens_indep_comm)
 
-lemma subst_upd_pr_var: "s(&x \<mapsto>\<^sub>s v) = s(x \<mapsto>\<^sub>s v)"
-  by (simp add: pr_var_def) 
+
 
 subsection \<open> others \<close>
 lemma subst_upd_lens_plus : 
@@ -234,6 +264,33 @@ lemma usubst_lookup_upd_indep :
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+consts
+  usedBy :: "'a \<Rightarrow> 'b \<Rightarrow> bool"
+
+syntax
+  "_usedBy" :: "salpha \<Rightarrow> logic \<Rightarrow> logic \<Rightarrow> logic" (infix "\<natural>" 20)
+translations
+  "_usedBy x p" == "CONST usedBy x p"                                           
+  "_usedBy (_salphaset (_salphamk (x +\<^sub>L y))) P"  <= "_usedBy (x +\<^sub>L y) P"
+
+lift_definition usedBy_uexpr :: "('b \<Longrightarrow> '\<alpha>) \<Rightarrow> ('a, '\<alpha>) uexpr \<Rightarrow> bool" 
+is "\<lambda> x e. (\<forall> b b'. e (b' \<oplus>\<^sub>L b on x) = e b)" .
+adhoc_overloading usedBy usedBy_uexpr
 
 
 

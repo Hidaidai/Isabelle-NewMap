@@ -3,135 +3,44 @@ imports
   nmap_assign
 begin
 
-
 consts
   unrest :: "'a \<Rightarrow> 'b \<Rightarrow> bool"
-
+lift_definition unrest_uexpr :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('b, '\<alpha>) uexpr \<Rightarrow> bool"
+is "\<lambda> x e. \<forall> b v. e (put\<^bsub>x\<^esub> b v) = e b" .
+adhoc_overloading
+  unrest unrest_uexpr
 syntax
   "_unrest" :: "salpha \<Rightarrow> logic \<Rightarrow> logic \<Rightarrow> logic" (infix "\<sharp>" 20)
-  
 translations
   "_unrest x p" == "CONST unrest x p"                                           
   "_unrest (_salphaset (_salphamk (x +\<^sub>L y))) P"  <= "_unrest (x +\<^sub>L y) P"
 
-text \<open> Our syntax translations support both variables and variable sets such that we can write down 
-  predicates like @{term "&x \<sharp> P"} and also @{term "{&x,&y,&z} \<sharp> P"}. 
-
-  We set up a simple tactic for discharging unrestriction conjectures using a simplification set. \<close>
-  
-named_theorems unrest
-method unrest_tac = (simp add: unrest)?
-  
-lift_definition unrest_uexpr :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> ('b, '\<alpha>) uexpr \<Rightarrow> bool"
-is "\<lambda> x e. \<forall> b v. e (put\<^bsub>x\<^esub> b v) = e b" .
-
-adhoc_overloading
-  unrest unrest_uexpr
-
-lemma unrest_expr_alt_def:
-  "weak_lens x \<Longrightarrow> (x \<sharp> P) = (\<forall> b b'. \<lbrakk>P\<rbrakk>\<^sub>e (b \<oplus>\<^sub>L b' on x) = \<lbrakk>P\<rbrakk>\<^sub>e b)"
-  by (transfer, metis lens_override_def weak_lens.put_get)
-  
-subsection \<open> Unrestriction laws \<close>
-  
-
-  
-lemma unrest_var_comp [unrest]:
+lemma unrest_var_comp:
   "\<lbrakk> x \<sharp> P; y \<sharp> P \<rbrakk> \<Longrightarrow> x;y \<sharp> P"
   by (transfer, simp add: lens_defs)
 
-lemma unrest_svar [unrest]: "(&x \<sharp> P) \<longleftrightarrow> (x \<sharp> P)"
-  by (transfer, simp add: lens_defs)
+lemma unrest_svar: "(&x \<sharp> P) \<longleftrightarrow> (x \<sharp> P)"
+  by (simp add: pr_var_def)
 
 text \<open> No lens is restricted by a literal, since it returns the same value for any state binding. \<close>
-    
-lemma unrest_lit [unrest]: "x \<sharp> \<guillemotleft>v\<guillemotright>"
+lemma unrest_lit: "x \<sharp> \<guillemotleft>v\<guillemotright>"
   by (transfer, simp)
 
-text \<open> If one lens is smaller than another, then any unrestriction on the larger lens implies
-  unrestriction on the smaller. \<close>
-    
-lemma unrest_sublens:
-  fixes P :: "('a, '\<alpha>) uexpr"
-  assumes "x \<sharp> P" "y \<subseteq>\<^sub>L x"
-  shows "y \<sharp> P" 
-  using assms
-  by (transfer, metis (no_types, lifting) lens.select_convs(2) lens_comp_def sublens_def)
-    
-text \<open> If two lenses are equivalent, and thus they characterise the same state-space regions,
-  then clearly unrestrictions over them are equivalent. \<close>
-    
-lemma unrest_equiv:
-  fixes P :: "('a, '\<alpha>) uexpr"
-  assumes "mwb_lens y" "x \<approx>\<^sub>L y" "x \<sharp> P"
-  shows "y \<sharp> P"
-  by (metis assms lens_equiv_def sublens_pres_mwb sublens_put_put unrest_uexpr.rep_eq)
-
-text \<open> If we can show that an expression is unrestricted on a bijective lens, then is unrestricted
-  on the entire state-space. \<close>
-
-lemma bij_lens_unrest_all:
-  fixes P :: "('a, '\<alpha>) uexpr"
-  assumes "bij_lens X" "X \<sharp> P"
-  shows "\<Sigma> \<sharp> P"
-  using assms bij_lens_equiv_id lens_equiv_def unrest_sublens by blast
-
-lemma bij_lens_unrest_all_eq:
-  fixes P :: "('a, '\<alpha>) uexpr"
-  assumes "bij_lens X"
-  shows "(\<Sigma> \<sharp> P) \<longleftrightarrow> (X \<sharp> P)"
-  by (meson assms bij_lens_equiv_id lens_equiv_def unrest_sublens)
-
-text \<open> If an expression is unrestricted by all variables, then it is unrestricted by any variable \<close>
-
-lemma unrest_all_var:
-  fixes e :: "('a, '\<alpha>) uexpr"
-  assumes "\<Sigma> \<sharp> e"
-  shows "x \<sharp> e"
-  by (metis assms id_lens_def lens.simps(2) unrest_uexpr.rep_eq)
-
-text \<open> We can split an unrestriction composed by lens plus \<close>
-
-lemma unrest_plus_split:
-  fixes P :: "('a, '\<alpha>) uexpr"
-  assumes "x \<bowtie> y" "vwb_lens x" "vwb_lens y"
-  shows "unrest (x +\<^sub>L y) P \<longleftrightarrow> (x \<sharp> P) \<and> (y \<sharp> P)"
-  using assms
-  by (meson lens_plus_right_sublens lens_plus_ub sublens_refl unrest_sublens unrest_var_comp vwb_lens_wb)
-
-lemma unrest_var [unrest]: "\<lbrakk> mwb_lens x; x \<bowtie> y \<rbrakk> \<Longrightarrow> y \<sharp> var x"
+lemma unrest_var: "\<lbrakk> mwb_lens x; x \<bowtie> y \<rbrakk> \<Longrightarrow> y \<sharp> var x"
   by (transfer, auto)
-    
-text \<open> Unrestriction distributes through the various function lifting expression constructs;
-  this allows us to prove unrestrictions for the majority of the expression language. \<close>
-    
-lemma unrest_uop [unrest]: "x \<sharp> e \<Longrightarrow> x \<sharp> uop f e"
-  by (transfer, simp)
-
-lemma unrest_bop [unrest]: "\<lbrakk> x \<sharp> u; x \<sharp> v \<rbrakk> \<Longrightarrow> x \<sharp> bop f u v"
+  
+lemma unrest_bop: "\<lbrakk> x \<sharp> u; x \<sharp> v \<rbrakk> \<Longrightarrow> x \<sharp> bop f u v"
   by (transfer, simp)
 
 
 
-text \<open> For convenience, we also prove unrestriction rules for the bespoke operators on equality,
-  numbers, arithmetic etc. \<close>
-
-lemma unrest_zero [unrest]: "x \<sharp> 0"
-  by (metis unrest_lit zero_uexpr_def)
-
-lemma unrest_one [unrest]: "x \<sharp> 1"
-  by (metis  one_uexpr_def unrest_lit)
-
-lemma unrest_plus [unrest]: "\<lbrakk> x \<sharp> u; x \<sharp> v \<rbrakk> \<Longrightarrow> x \<sharp> u + v"
-  by (simp add: plus_uexpr_def unrest)
-
-lemma unrest_case_prod [unrest]: "\<lbrakk> \<And> i j. x \<sharp> P i j \<rbrakk> \<Longrightarrow> x \<sharp> case_prod P v"
-  by (simp add: prod.split_sel_asm)
 
 
 
-
-
+definition unrest_usubst :: "('a \<Longrightarrow> '\<alpha>) \<Rightarrow> '\<alpha> usubst \<Rightarrow> bool"
+where "unrest_usubst x \<sigma> = (\<forall> \<rho> v. \<sigma> (put\<^bsub>x\<^esub> \<rho> v) = put\<^bsub>x\<^esub> (\<sigma> \<rho>) v)"
+adhoc_overloading
+  unrest unrest_usubst
 
 text \<open> If a variable is unrestricted in an expression, then any substitution of that variable
   has no effect on the expression .\<close>
@@ -146,114 +55,35 @@ lemma subst_unrest_2 :
   using assms
   by (simp add: subst_upd_uvar_def, transfer, auto, metis lens_indep.lens_put_comm)
 
+lemma subst_unrest_3 : 
+  fixes P :: "('a, '\<alpha>) uexpr"
+  assumes "x \<sharp> P" "x \<bowtie> y" "x \<bowtie> z"
+  shows "\<sigma>(x \<mapsto>\<^sub>s u, y \<mapsto>\<^sub>s v, z \<mapsto>\<^sub>s w) \<dagger> P = \<sigma>(y \<mapsto>\<^sub>s v, z \<mapsto>\<^sub>s w) \<dagger> P"
+  using assms
+  by (simp add: subst_upd_uvar_def, transfer, auto, metis (no_types, hide_lams) lens_indep_comm)
 
+lemma subst_unrest_4 : 
+  fixes P :: "('a, '\<alpha>) uexpr"
+  assumes "x \<sharp> P" "x \<bowtie> y" "x \<bowtie> z" "x \<bowtie> u"
+  shows "\<sigma>(x \<mapsto>\<^sub>s e, y \<mapsto>\<^sub>s f, z \<mapsto>\<^sub>s g, u \<mapsto>\<^sub>s h) \<dagger> P = \<sigma>(y \<mapsto>\<^sub>s f, z \<mapsto>\<^sub>s g, u \<mapsto>\<^sub>s h) \<dagger> P"
+  using assms
+  by (simp add: subst_upd_uvar_def, transfer, auto, metis (no_types, hide_lams) lens_indep_comm)
 
+lemma subst_unrest_5 : 
+  fixes P :: "('a, '\<alpha>) uexpr"
+  assumes "x \<sharp> P" "x \<bowtie> y" "x \<bowtie> z" "x \<bowtie> u" "x \<bowtie> v"
+  shows "\<sigma>(x \<mapsto>\<^sub>s e, y \<mapsto>\<^sub>s f, z \<mapsto>\<^sub>s g, u \<mapsto>\<^sub>s h, v \<mapsto>\<^sub>s i) \<dagger> P = \<sigma>(y \<mapsto>\<^sub>s f, z \<mapsto>\<^sub>s g, u \<mapsto>\<^sub>s h, v \<mapsto>\<^sub>s i) \<dagger> P"
+  using assms
+  by (simp add: subst_upd_uvar_def, transfer, auto, metis (no_types, hide_lams) lens_indep_comm)
 
+lemma subst_compose_upd : "x \<sharp> \<sigma> \<Longrightarrow> \<sigma> \<circ> \<rho>(x \<mapsto>\<^sub>s v) = (\<sigma> \<circ> \<rho>)(x \<mapsto>\<^sub>s v)"
+  by (simp add: subst_upd_uvar_def, transfer, auto simp add: unrest_usubst_def)
 
+lemma subst_subst : "\<sigma> \<dagger> \<rho> \<dagger> e = (\<rho> \<circ> \<sigma>) \<dagger> e"
+  by (transfer, simp)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-text \<open> The following two functions lift a predicate substitution to a relational one. \<close>
-
-definition in\<alpha> :: "('\<alpha> \<Longrightarrow> '\<alpha> \<times> '\<beta>)" where
-[lens_defs]: "in\<alpha> = fst\<^sub>L"
-
-definition out\<alpha> :: "('\<beta> \<Longrightarrow> '\<alpha> \<times> '\<beta>)" where
-[lens_defs]: "out\<alpha> = snd\<^sub>L"
-
-
-
-lift_definition aext :: "('a, '\<beta>) uexpr \<Rightarrow> ('\<beta>, '\<alpha>) lens \<Rightarrow> ('a, '\<alpha>) uexpr" (infixr "\<oplus>\<^sub>p" 95)
-is "\<lambda> P x b. P (get\<^bsub>x\<^esub> b)" .
-
-
-
-definition subst_ext :: "'\<alpha> usubst \<Rightarrow> ('\<alpha> \<Longrightarrow> '\<beta>) \<Rightarrow> '\<beta> usubst" (infix "\<oplus>\<^sub>s" 65) where
- "\<sigma> \<oplus>\<^sub>s x = (\<lambda> s. put\<^bsub>x\<^esub> s (\<sigma> (get\<^bsub>x\<^esub> s)))"
-
-lemma id_subst_ext :
-  "wb_lens x \<Longrightarrow> id \<oplus>\<^sub>s x = id"
-  by (simp add: id_def subst_ext_def)
-
-
-lemma upd_subst_ext :
-  "vwb_lens x \<Longrightarrow> \<sigma>(y \<mapsto>\<^sub>s v) \<oplus>\<^sub>s x = (\<sigma> \<oplus>\<^sub>s x)(&x:y \<mapsto>\<^sub>s v \<oplus>\<^sub>p x)"
-
-
-lemma apply_subst_ext :
-  "vwb_lens x \<Longrightarrow> (\<sigma> \<dagger> e) \<oplus>\<^sub>p x = (\<sigma> \<oplus>\<^sub>s x) \<dagger> (e \<oplus>\<^sub>p x)"
-  by (pred_auto)
-
-lemma aext_upred_eq :
-  "((e =\<^sub>u f) \<oplus>\<^sub>p a) = ((e \<oplus>\<^sub>p a) =\<^sub>u (f \<oplus>\<^sub>p a))"
-  by (pred_auto)
-
-lemma subst_aext_comp :
-  "vwb_lens a \<Longrightarrow> (\<sigma> \<oplus>\<^sub>s a) \<circ> (\<rho> \<oplus>\<^sub>s a) = (\<sigma> \<circ> \<rho>) \<oplus>\<^sub>s a"
-  by pred_auto
-    
-subsection \<open> Substitution Alphabet Restriction \<close>
-
-text \<open> This allows us to reduce the alphabet of a substitution, in a similar way to expressions. \<close>
-  
-definition subst_res :: "'\<alpha> usubst \<Rightarrow> ('\<beta> \<Longrightarrow> '\<alpha>) \<Rightarrow> '\<beta> usubst" (infix "\<restriction>\<^sub>s" 65) where
-[upred_defs]: "\<sigma> \<restriction>\<^sub>s x = (\<lambda> s. get\<^bsub>x\<^esub> (\<sigma> (create\<^bsub>x\<^esub> s)))"
-
-lemma id_subst_res [usubst]:
-  "mwb_lens x \<Longrightarrow> id \<restriction>\<^sub>s x = id"
-  by pred_auto
-
-lemma upd_subst_res [alpha]:
-  "mwb_lens x \<Longrightarrow> \<sigma>(&x:y \<mapsto>\<^sub>s v) \<restriction>\<^sub>s x = (\<sigma> \<restriction>\<^sub>s x)(&y \<mapsto>\<^sub>s v \<restriction>\<^sub>e x)"
-  by (pred_auto)
-
-lemma subst_ext_res [usubst]:
-  "mwb_lens x \<Longrightarrow> (\<sigma> \<oplus>\<^sub>s x) \<restriction>\<^sub>s x = \<sigma>"
-  by (pred_auto)
-
-lemma unrest_subst_alpha_ext [unrest]:
-  "x \<bowtie> y \<Longrightarrow> x \<sharp> (P \<oplus>\<^sub>s y)"
-  by (pred_simp robust, metis lens_indep_def)
-
-
-
-abbreviation usubst_rel_lift :: "'\<alpha> usubst \<Rightarrow> ('\<alpha> \<times> '\<beta>) usubst" ("\<lceil>_\<rceil>\<^sub>s") where
-"\<lceil>\<sigma>\<rceil>\<^sub>s \<equiv> \<sigma> \<oplus>\<^sub>s in\<alpha>"
-
-
-
-lemma assigns_subst :
-  "\<lceil>\<sigma>\<rceil>\<^sub>s \<dagger> \<langle>\<rho>\<rangle>\<^sub>a = \<langle>\<rho> \<circ> \<sigma>\<rangle>\<^sub>a"
- 
-
-lemma assigns_r_comp: "(\<langle>\<sigma>\<rangle>\<^sub>a ;; P) = (\<lceil>\<sigma>\<rceil>\<^sub>s \<dagger> P)"
-  by (rel_auto)
+lemma subst_upd_comp : "\<rho>(x \<mapsto>\<^sub>s v) \<circ> \<sigma> = (\<rho> \<circ> \<sigma>)(x \<mapsto>\<^sub>s (\<sigma> \<dagger> v))"
+  by (rule ext, simp add: subst_upd_uvar_def, transfer, simp)
 
 
 
@@ -272,14 +102,190 @@ lemma assigns_r_comp: "(\<langle>\<sigma>\<rangle>\<^sub>a ;; P) = (\<lceil>\<si
 
 subsection \<open> serial statement  \<close>
 
+definition skip_ra :: "('\<beta>, '\<alpha>) lens \<Rightarrow>'\<alpha> proc" where
+"skip_ra v = ($v\<acute> =\<^sub>u $v)"
+
+syntax
+  \<comment> \<open> Alphabetised skip \<close>
+  "_skip_ra"        :: "salpha \<Rightarrow> logic" ("II\<^bsub>_\<^esub>")
+translations
+  "_skip_ra v" \<rightleftharpoons> "CONST skip_ra v"
+
+
+
+
+
 consts useq     :: "'a \<Rightarrow> 'b \<Rightarrow> 'c" (infixr ";;" 61)
-lift_definition seqr::"('\<alpha>, '\<beta>) urel \<Rightarrow> ('\<beta>, '\<gamma>) urel \<Rightarrow>  (bool,'\<alpha> \<times> '\<gamma>) uexpr"
+lift_definition seqr::"(bool,'\<alpha> \<times> '\<beta>) uexpr  \<Rightarrow>  (bool,'\<beta> \<times> '\<gamma>) uexpr \<Rightarrow>  (bool,'\<alpha> \<times> '\<gamma>) uexpr"
 is "\<lambda> P Q b. b \<in> ({p. P p} O {q. Q q})" .
 adhoc_overloading
   useq seqr
 
+lemma assigns_comp: "\<langle>f\<rangle>\<^sub>a ;; \<langle>g\<rangle>\<^sub>a = \<langle>g \<circ> f\<rangle>\<^sub>a" 
+  by (transfer, simp add: relcomp_unfold)
 
-(***
+lemma assigns_cobbmp: "P ;; (Q ;; R) = (P ;; Q) ;; R" 
+  by (transfer,simp add: O_assoc)
+
+lemma assigns_left: 
+  assumes "P = \<langle>f\<rangle>\<^sub>a"
+  shows "P ;;  II =  P"
+  by (simp add: assigns_comp skip_r_def assms)
+
+lemma assigns_right: 
+  assumes "P = \<langle>f\<rangle>\<^sub>a"
+  shows "II ;; P =  P"
+  by (simp add: assigns_comp skip_r_def assms)
+
+lemma assign_commute:
+  assumes "x \<bowtie> y" "x \<sharp> f" "y \<sharp> e"
+  shows "(x := e ;; y := f) = (y := f ;; x := e)"
+  using assms
+proof -
+  have f1: "[y \<mapsto>\<^sub>s f] \<circ> [x \<mapsto>\<^sub>s e] = [x \<mapsto>\<^sub>s e, y \<mapsto>\<^sub>s [x \<mapsto>\<^sub>s e] \<dagger> f]"
+    by (simp add:  subst_upd_comp)
+  have f2: "[x \<mapsto>\<^sub>s e] = (id \<circ> id)(x \<mapsto>\<^sub>s id \<dagger> e)"
+    by (metis comp_id subst_upd_comp)
+  have f3: "([y \<mapsto>\<^sub>s f] \<circ> id) \<dagger> e = (id \<dagger> e)"
+    by (simp add: assms(3)  subst_unrest)
+  have "[y \<mapsto>\<^sub>s ([x \<mapsto>\<^sub>s e] \<circ> id) \<dagger> f] = [y \<mapsto>\<^sub>s f]"
+    by (metis assms(2) comp_id  subst_unrest subst_upd_comp)
+  then have "[y \<mapsto>\<^sub>s f] \<circ> [x \<mapsto>\<^sub>s e] = [x \<mapsto>\<^sub>s e] \<circ> [y \<mapsto>\<^sub>s f]"
+    using f1 f2 f3 by (metis assms(1) assms(2) fun.map_id subst_unrest subst_upd_comp usubst_upd_comm)
+  then show ?thesis
+    by (simp add: assigns_comp pr_var_def)
+qed
+
+
+
+
+lemma fsdfas:
+ assumes"vwb_lens x"
+ shows " (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) ) =  (\<lambda>b. \<lbrakk>&x\<rbrakk>\<^sub>e  ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) +  \<lbrakk>2\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) ) "
+  by (simp add: plus_ueval )
+
+lemma plus_ueval : "\<lbrakk>x + y\<rbrakk>\<^sub>eb = (\<lbrakk>x\<rbrakk>\<^sub>eb) + (\<lbrakk>y\<rbrakk>\<^sub>eb)"
+  by (simp add: bop_ueval plus_uexpr_def)
+
+
+
+
+
+
+
+lemma hello_test1:
+  assumes"vwb_lens x"
+  shows " [x \<mapsto>\<^sub>s 1] \<dagger> (&x + 2) = 3"
+proof -
+  have f1: " \<lbrakk> [x \<mapsto>\<^sub>s 1] \<dagger> (&x + 2)\<rbrakk>\<^sub>e =  (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( [x \<mapsto>\<^sub>s 1] b)) "
+    by (simp add: subst.rep_eq)
+  then have " (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( [x \<mapsto>\<^sub>s 1] b)) =  (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) )"
+    by (simp add: subst_upd_uvar_def)
+  then have " (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( [x \<mapsto>\<^sub>s 1] b)) =  (\<lambda>b. \<lbrakk>var x\<rbrakk>\<^sub>e  ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) +  \<lbrakk>2\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) ) "
+    by (simp add: plus_ueval pr_var_def)
+  then have " (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( [x \<mapsto>\<^sub>s 1] b)) =  (\<lambda>b. get\<^bsub>x\<^esub> ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) +  \<lbrakk>2\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>1\<rbrakk>\<^sub>e b)) ) "
+    by (simp add: var.rep_eq)
+  then have " (\<lambda>b. \<lbrakk>&x + 2\<rbrakk>\<^sub>e ( [x \<mapsto>\<^sub>s 1] b)) =  (\<lambda>b. \<lbrakk>1\<rbrakk>\<^sub>e b +  \<lbrakk>2\<rbrakk>\<^sub>e b ) "
+    by (simp add: assms numeral_uexpr_rep_eq)
+  then have " \<lbrakk> [x \<mapsto>\<^sub>s 1] \<dagger> (&x + 2)\<rbrakk>\<^sub>e =  \<lbrakk>3\<rbrakk>\<^sub>e  "
+    by (metis (no_types, hide_lams) f1 numeral_One numeral_uexpr_rep_eq one_plus_numeral semiring_norm(3) uexpr_eq_iff)
+  then show ?thesis
+    by (simp add: Rep_uexpr_inject)
+qed
+
+theorem hello_test: 
+  assumes"vwb_lens x"
+  shows "(x := 1 ;; x := &x + 2) = (x := 3 )"
+proof -
+  have f1: "[x \<mapsto>\<^sub>s &x + 2] \<circ> [x \<mapsto>\<^sub>s 1] = [x \<mapsto>\<^sub>s 1, x \<mapsto>\<^sub>s [x \<mapsto>\<^sub>s 1] \<dagger> (&x + 2)]"
+    by (simp add: subst_upd_comp)
+  have f2: " [x \<mapsto>\<^sub>s 1] \<dagger> (&x + 2) = 3"
+    by (simp add: assms hello_test1)
+  have "(x := 1 ;; x := &x + 2) = \<langle> [x \<mapsto>\<^sub>s &x + 2] \<circ> [x \<mapsto>\<^sub>s 1] \<rangle>\<^sub>a"
+    by (simp add: assigns_comp pr_var_def)
+  then have "(x := 1 ;; x := &x + 2) =  \<langle> [x \<mapsto>\<^sub>s 3] \<rangle>\<^sub>a"
+    using f1 f2    by (simp add: assms usubst_upd_idem)
+  then show ?thesis
+    by (simp add: pr_var_def)
+qed
+
+
+
+
+
+
+
+
+
+
+
+lemma hello_thdhest1:
+  assumes"vwb_lens x"
+  shows " [x \<mapsto>\<^sub>s numeral a] \<dagger> (&x + numeral c) = numeral a + numeral c"
+proof -
+  have f1: " \<lbrakk> [x \<mapsto>\<^sub>s numeral a] \<dagger> (&x + numeral c)\<rbrakk>\<^sub>e =   (\<lambda>b. \<lbrakk>&x + numeral c\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>numeral a\<rbrakk>\<^sub>e b))) "
+    by (simp add: subst.rep_eq subst_upd_uvar_def)
+  then have "(\<lambda>b. \<lbrakk>&x + numeral c\<rbrakk>\<^sub>e ( put\<^bsub>x\<^esub> b (\<lbrakk>numeral a\<rbrakk>\<^sub>e b))) =  (\<lambda>b. \<lbrakk>numeral a\<rbrakk>\<^sub>e b +  \<lbrakk>numeral c\<rbrakk>\<^sub>e b ) "
+    by (simp add: assms numeral_uexpr_rep_eq var.rep_eq plus_ueval pr_var_def)
+  then have " \<lbrakk> [x \<mapsto>\<^sub>s numeral a] \<dagger> (&x + numeral c)\<rbrakk>\<^sub>e =  \<lbrakk>numeral a + numeral c\<rbrakk>\<^sub>e  "
+    by (metis (no_types, hide_lams) f1 numeral_plus_numeral numeral_uexpr_rep_eq uexpr_eq_iff)
+  then show ?thesis
+    by (simp add: Rep_uexpr_inject)
+qed
+
+theorem hellerqweqweo_test: 
+  assumes"vwb_lens x"
+  shows "(x := numeral a ;; x := &x +  numeral c) = (x :=  numeral a + numeral c )"
+proof -
+  have f1: "[x \<mapsto>\<^sub>s &x +  numeral c] \<circ> [x \<mapsto>\<^sub>s numeral a] = [x \<mapsto>\<^sub>s numeral a, x \<mapsto>\<^sub>s [x \<mapsto>\<^sub>s numeral a] \<dagger> (&x +  numeral c)]"
+    by (simp add: subst_upd_comp)
+  have f2: "[x \<mapsto>\<^sub>s numeral a] \<dagger> (&x + numeral c) = numeral a + numeral c"
+    by (simp add: assms hello_thdhest1)
+  have "(x := numeral a ;; x := &x +  numeral c) = \<langle> [x \<mapsto>\<^sub>s &x +  numeral c] \<circ> [x \<mapsto>\<^sub>s numeral a] \<rangle>\<^sub>a"
+    by (simp add: assigns_comp pr_var_def)
+  then have "(x := numeral a ;; x := &x +  numeral c) =  \<langle> [x \<mapsto>\<^sub>s  numeral a + numeral c] \<rangle>\<^sub>a"
+    using f1 f2    by (simp add: assms usubst_upd_idem)
+  then show ?thesis
+    by (simp add: pr_var_def)
+qed
+
+
+
+
+
+(**
+lemma assign_commute:
+  assumes "x \<bowtie> y"  "y \<sharp> e"
+  shows "(x := e ;; y := &x) = (x := e ;; f := e)"
+ 
+
+
+
+
+
+lemma assign_test: "mwb_lens x \<Longrightarrow> (x := \<guillemotleft>u\<guillemotright> ;; x := \<guillemotleft>v\<guillemotright>) = (x := \<guillemotleft>v\<guillemotright>)"
+
+
+lemma assign_twice: "\<lbrakk> mwb_lens x; x \<sharp> f \<rbrakk> \<Longrightarrow> (x := e ;; x := f) = (x := f)"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 locale serial = 
   fixes serial :: "'\<alpha> proc \<Rightarrow> '\<alpha> proc \<Rightarrow> '\<alpha> proc" (infixl ";;" 60)
   assumes serial_assoc : "(X ;; Y) ;; Z = X ;; (Y ;; Z)"
